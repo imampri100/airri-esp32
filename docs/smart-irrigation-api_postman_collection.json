@@ -1,0 +1,1425 @@
+{
+	"info": {
+		"name": "Smart Irrigation - ESP32 API",
+		"description": "Koleksi endpoint REST API firmware Smart Irrigation (ESP32), lengkap dengan contoh response sukses & error. Ganti variable `base_url` sesuai IP address ESP32 (lihat Serial Monitor atau layar TFT saat boot).",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://192.168.4.1",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "Ping",
+			"item": [
+				{
+					"name": "Ping",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/ping",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"ping"
+							]
+						},
+						"description": "Cek konektivitas ringan - tidak baca sensor atau SD Card sama sekali, aman dipanggil sesering apapun (mis. buat polling status koneksi di app) tanpa beban seperti GET /api/status."
+					},
+					"response": [
+						{
+							"name": "Success - 200",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/ping",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"ping"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n  \"pong\": true\n}"
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Status",
+			"item": [
+				{
+					"name": "Get Status",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/status",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"status"
+							]
+						},
+						"description": "Kondisi terkini: sensor, trigger, restriction, hasil keputusan, status pompa, dan timeSynchronized (false kalau RTC gagal & fallback NTP juga belum berhasil - createdAt di log jadi tidak akurat selama ini)."
+					},
+					"response": [
+						{
+							"name": "Success - 200",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/status",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"status"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n  \"sensor\": {\n    \"soilMoisture\": 42,\n    \"airHumidity\": 65.3,\n    \"airTemperature\": 29.1,\n    \"lightIntensity\": 320\n  },\n  \"trigger\": {\n    \"soilMoistureOperator\": \"<\",\n    \"soilMoistureValue\": 30\n  },\n  \"restriction\": {\n    \"airHumidityEnabled\": true,\n    \"airHumidityOperator\": \"<\",\n    \"airHumidityValue\": 40,\n    \"airTemperatureEnabled\": false,\n    \"airTemperatureOperator\": \">\",\n    \"airTemperatureValue\": 35,\n    \"lightIntensityEnabled\": false,\n    \"lightIntensityOperator\": \"<\",\n    \"lightIntensityValue\": 100,\n    \"maxPumpRuntimeSecond\": 15\n  },\n  \"decision\": {\n    \"shouldRunPump\": false,\n    \"reason\": \"Pemicu belum terpenuhi\"\n  },\n  \"pumpRunning\": false,\n  \"timeSynchronized\": true\n}"
+						},
+						{
+							"name": "Endpoint salah - 404",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/statuss",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"statuss"
+									]
+								}
+							},
+							"status": "Not Found",
+							"code": 404,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n  \"error\": \"Endpoint tidak ditemukan\"\n}"
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Logs",
+			"item": [
+				{
+					"name": "Get Sensor Logs",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/logs/sensor?lastId=0&limit=50",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"logs",
+								"sensor"
+							],
+							"query": [
+								{
+									"key": "lastId",
+									"value": "0"
+								},
+								{
+									"key": "limit",
+									"value": "50"
+								}
+							]
+						},
+						"description": "Riwayat log sensor. Naikkan lastId ke id terakhir yang sudah diterima untuk paginasi/incremental sync. limit di-clamp ke maksimal 200 di firmware; kalau butuh data lebih banyak, panggil berkali-kali sambil menaikkan lastId.\n\nLog disimpan di ESP32 dengan rotasi 1 file per bulan dan retensi otomatis (LogRetentionTask): file lebih tua dari 3 bulan dihapus, begitu juga file tertua kalau total ukuran log sudah mendekati kuota kartu SD. Cek `sensorLogFirstId` di GET /api/sync untuk tahu id tertua yang masih tersedia sebelum melakukan sync."
+					},
+					"response": [
+						{
+							"name": "Success - ada data - 200",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/logs/sensor?lastId=0&limit=50",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"logs",
+										"sensor"
+									],
+									"query": [
+										{
+											"key": "lastId",
+											"value": "0"
+										},
+										{
+											"key": "limit",
+											"value": "50"
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "[\n  {\n    \"id\": 1,\n    \"createdAt\": 1737350400,\n    \"soilMoisture\": 45,\n    \"airHumidity\": 63.2,\n    \"airTemperature\": 28.4,\n    \"lightIntensity\": 280,\n    \"isIrrigationRun\": false\n  },\n  {\n    \"id\": 2,\n    \"createdAt\": 1737350700,\n    \"soilMoisture\": 29,\n    \"airHumidity\": 62.8,\n    \"airTemperature\": 28.6,\n    \"lightIntensity\": 300,\n    \"isIrrigationRun\": true\n  }\n]"
+						},
+						{
+							"name": "Success - belum ada log - 200",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/logs/sensor?lastId=0&limit=50",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"logs",
+										"sensor"
+									],
+									"query": [
+										{
+											"key": "lastId",
+											"value": "0"
+										},
+										{
+											"key": "limit",
+											"value": "50"
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "[]"
+						}
+					]
+				},
+				{
+					"name": "Get Irrigation Logs",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/logs/irrigation?lastId=0&limit=50",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"logs",
+								"irrigation"
+							],
+							"query": [
+								{
+									"key": "lastId",
+									"value": "0"
+								},
+								{
+									"key": "limit",
+									"value": "50"
+								}
+							]
+						},
+						"description": "Riwayat siklus penyiraman. limit di-clamp ke maksimal 200 di firmware.\n\nLog disimpan di ESP32 dengan rotasi 1 file per bulan dan retensi otomatis (LogRetentionTask, sama seperti log sensor) - lihat `irrigationLogFirstId` di GET /api/sync."
+					},
+					"response": [
+						{
+							"name": "Success - ada data - 200",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/logs/irrigation?lastId=0&limit=50",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"logs",
+										"irrigation"
+									],
+									"query": [
+										{
+											"key": "lastId",
+											"value": "0"
+										},
+										{
+											"key": "limit",
+											"value": "50"
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "[\n  {\n    \"id\": 1,\n    \"createdAt\": 1737350700,\n    \"irrigationRunAt\": 1737350700,\n    \"irrigationStopAt\": 1737350715,\n    \"irrigationDurationSecond\": 15,\n    \"irrigationMillilitre\": 50\n  }\n]"
+						},
+						{
+							"name": "Success - belum ada log - 200",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/logs/irrigation?lastId=0&limit=50",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"logs",
+										"irrigation"
+									],
+									"query": [
+										{
+											"key": "lastId",
+											"value": "0"
+										},
+										{
+											"key": "limit",
+											"value": "50"
+										}
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "[]"
+						}
+					]
+				},
+				{
+					"name": "Delete All Logs",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/logs",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"logs"
+							]
+						},
+						"description": "Hapus semua log sensor & irigasi dari SD Card. Tidak bisa di-undo."
+					},
+					"response": [
+						{
+							"name": "Success - 200",
+							"originalRequest": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/logs",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"logs"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n  \"success\": true\n}"
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Sync",
+			"item": [
+				{
+					"name": "Get Sync Metadata",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/sync",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"sync"
+							]
+						},
+						"description": "Metadata sinkronisasi + jumlah total log sensor & irigasi.\n\n- `sensorLogLastId`/`irrigationLogLastId`: id terbaru saat ini (live dari repository), dipakai mobile app sebagai acuan `lastId` request berikutnya.\n- `sensorLogFirstId`/`irrigationLogFirstId`: id tertua yang MASIH ADA di storage. Kalau ke depannya ESP32 melakukan rotasi/purge log lama, angka ini akan naik.\n\nMobile app perlu bandingkan id terakhir yang sudah tersimpan di local DB-nya (`lastSyncedId`) dengan `sensorLogFirstId`/`irrigationLogFirstId` dari response ini. Kalau `lastSyncedId + 1 < FirstId`, berarti ada rentang data yang sudah hilang dari ESP32 sebelum sempat disinkron (mis. HP lama tidak connect ke WiFi device) - app perlu menandai histori pada rentang itu sebagai tidak lengkap, karena datanya tidak bisa dipulihkan lagi."
+					},
+					"response": [
+						{
+							"name": "Success - 200",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/sync",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"sync"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n  \"storageId\": 1,\n  \"sensorLogLastId\": 128,\n  \"irrigationLogLastId\": 12,\n  \"sensorLogCount\": 128,\n  \"irrigationLogCount\": 12,\n  \"sensorLogFirstId\": 1,\n  \"irrigationLogFirstId\": 1\n}"
+						},
+						{
+							"name": "Success - setelah rotasi/purge log lama - 200",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/sync",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"sync"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n  \"storageId\": 1,\n  \"sensorLogLastId\": 15000,\n  \"irrigationLogLastId\": 340,\n  \"sensorLogCount\": 9600,\n  \"irrigationLogCount\": 210,\n  \"sensorLogFirstId\": 5401,\n  \"irrigationLogFirstId\": 131\n}"
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Settings",
+			"item": [
+				{
+					"name": "Get Trigger Setting",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/settings/trigger",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"settings",
+								"trigger"
+							]
+						},
+						"description": ""
+					},
+					"response": [
+						{
+							"name": "Success - 200",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/settings/trigger",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"settings",
+										"trigger"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n  \"soilMoistureOperator\": \"<\",\n  \"soilMoistureValue\": 30\n}"
+						}
+					]
+				},
+				{
+					"name": "Update Trigger Setting",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/settings/trigger",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"settings",
+								"trigger"
+							]
+						},
+						"description": "Pompa akan nyala kalau soilMoisture < soilMoistureValue (sesuai operator). Operator valid: \"<\", \">\", \"<=\", \">=\", \"==\".",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"soilMoistureOperator\": \"<\",\n  \"soilMoistureValue\": 30\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": [
+						{
+							"name": "Success - 200",
+							"originalRequest": {
+								"method": "PUT",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/settings/trigger",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"settings",
+										"trigger"
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"soilMoistureOperator\": \"<\",\n  \"soilMoistureValue\": 30\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n  \"soilMoistureOperator\": \"<\",\n  \"soilMoistureValue\": 30\n}"
+						},
+						{
+							"name": "Error - body kosong - 400",
+							"originalRequest": {
+								"method": "PUT",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/settings/trigger",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"settings",
+										"trigger"
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"status": "Bad Request",
+							"code": 400,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n  \"error\": \"Body JSON tidak ditemukan\"\n}"
+						},
+						{
+							"name": "Error - JSON rusak - 400",
+							"originalRequest": {
+								"method": "PUT",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/settings/trigger",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"settings",
+										"trigger"
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"_raw_invalid_example\": \"body dikirim sebagai teks rusak, contoh: {soilMoistureValue: 30 (tanpa kutip/kurung tutup)\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"status": "Bad Request",
+							"code": 400,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n  \"error\": \"JSON tidak valid\"\n}"
+						}
+					]
+				},
+				{
+					"name": "Get Restriction Setting",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/settings/restriction",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"settings",
+								"restriction"
+							]
+						},
+						"description": "Ambil kondisi yang MENCEGAH pompa nyala meskipun trigger terpenuhi, termasuk safety-net batas maksimal durasi pompa nyala terus-menerus (maxPumpRuntimeSecond, dalam detik)."
+					},
+					"response": [
+						{
+							"name": "Success - 200",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/settings/restriction",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"settings",
+										"restriction"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n  \"airHumidityEnabled\": true,\n  \"airHumidityOperator\": \"<\",\n  \"airHumidityValue\": 40,\n  \"airTemperatureEnabled\": false,\n  \"airTemperatureOperator\": \">\",\n  \"airTemperatureValue\": 35,\n  \"lightIntensityEnabled\": false,\n  \"lightIntensityOperator\": \"<\",\n  \"lightIntensityValue\": 100,\n  \"maxPumpRuntimeSecond\": 15\n}"
+						}
+					]
+				},
+				{
+					"name": "Update Restriction Setting",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/settings/restriction",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"settings",
+								"restriction"
+							]
+						},
+						"description": "Kondisi yang MENCEGAH pompa nyala meskipun trigger terpenuhi (mis. jangan siram kalau udara masih lembap). maxPumpRuntimeSecond = safety-net, batas maksimal pompa nyala terus-menerus tanpa henti (detik), sebelum firmware paksa mematikan pompa (lihat log \"Pompa dimatikan paksa - melebihi batas runtime aman\").",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"airHumidityEnabled\": true,\n  \"airHumidityOperator\": \"<\",\n  \"airHumidityValue\": 40,\n  \"airTemperatureEnabled\": false,\n  \"airTemperatureOperator\": \">\",\n  \"airTemperatureValue\": 35,\n  \"lightIntensityEnabled\": false,\n  \"lightIntensityOperator\": \"<\",\n  \"lightIntensityValue\": 100,\n  \"maxPumpRuntimeSecond\": 20\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": [
+						{
+							"name": "Success - 200",
+							"originalRequest": {
+								"method": "PUT",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/settings/restriction",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"settings",
+										"restriction"
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"airHumidityEnabled\": true,\n  \"airHumidityOperator\": \"<\",\n  \"airHumidityValue\": 40,\n  \"airTemperatureEnabled\": false,\n  \"airTemperatureOperator\": \">\",\n  \"airTemperatureValue\": 35,\n  \"lightIntensityEnabled\": false,\n  \"lightIntensityOperator\": \"<\",\n  \"lightIntensityValue\": 100,\n  \"maxPumpRuntimeSecond\": 20\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n  \"airHumidityEnabled\": true,\n  \"airHumidityOperator\": \"<\",\n  \"airHumidityValue\": 40,\n  \"airTemperatureEnabled\": false,\n  \"airTemperatureOperator\": \">\",\n  \"airTemperatureValue\": 35,\n  \"lightIntensityEnabled\": false,\n  \"lightIntensityOperator\": \"<\",\n  \"lightIntensityValue\": 100,\n  \"maxPumpRuntimeSecond\": 20\n}"
+						},
+						{
+							"name": "Error - body kosong - 400",
+							"originalRequest": {
+								"method": "PUT",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/settings/restriction",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"settings",
+										"restriction"
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"status": "Bad Request",
+							"code": 400,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n  \"error\": \"Body JSON tidak ditemukan\"\n}"
+						},
+						{
+							"name": "Error - JSON rusak - 400",
+							"originalRequest": {
+								"method": "PUT",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/settings/restriction",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"settings",
+										"restriction"
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"airHumidityEnabled\": \"bukan_boolean\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"status": "Bad Request",
+							"code": 400,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n  \"error\": \"JSON tidak valid\"\n}"
+						}
+					]
+				},
+				{
+					"name": "Get Language Setting",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/settings/language",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"settings",
+								"language"
+							]
+						},
+						"description": "Ambil bahasa aktif buat decision.reason (API) & label/status layar TFT. \"id\" (default) atau \"en\". Pesan error HTTP & log Serial tidak ikut lokalisasi ini."
+					},
+					"response": [
+						{
+							"name": "Success - 200",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/settings/language",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"settings",
+										"language"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n  \"language\": \"id\"\n}"
+						}
+					]
+				},
+				{
+					"name": "Update Language Setting",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/settings/language",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"settings",
+								"language"
+							]
+						},
+						"description": "Ganti bahasa aktif (\"id\"/\"en\") - langsung terasa seketika di TFT & response API berikutnya, tidak perlu restart device. Persisted ke /settings/language.json juga, jadi tetap kesimpan walau device di-restart.",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"language\": \"en\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": [
+						{
+							"name": "Success - 200",
+							"originalRequest": {
+								"method": "PUT",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/settings/language",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"settings",
+										"language"
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"language\": \"en\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n  \"language\": \"en\"\n}"
+						},
+						{
+							"name": "Error - body kosong - 400",
+							"originalRequest": {
+								"method": "PUT",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/settings/language",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"settings",
+										"language"
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"status": "Bad Request",
+							"code": 400,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n  \"error\": \"Body JSON tidak ditemukan\"\n}"
+						},
+						{
+							"name": "Error - JSON rusak - 400",
+							"originalRequest": {
+								"method": "PUT",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/settings/language",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"settings",
+										"language"
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"_raw_invalid_example\": \"body dikirim sebagai teks rusak, contoh: {language: \\\"en\\\" (tanpa kutip/kurung tutup)\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"status": "Bad Request",
+							"code": 400,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n  \"error\": \"JSON tidak valid\"\n}"
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Pump",
+			"item": [
+				{
+					"name": "Get Pump Info",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/pump/info",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"pump",
+								"info"
+							]
+						},
+						"description": "Info statis pompa - flowRateMlPerMinute adalah konstanta kompilasi (PumpConfig::FLOW_RATE_ML_PER_MINUTE), dipakai firmware buat estimasi irrigationMillilitre di log irigasi. Read-only, tidak ada endpoint buat mengubahnya - ganti pompa = update konstanta di kode + re-flash."
+					},
+					"response": [
+						{
+							"name": "Success - 200",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/pump/info",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"pump",
+										"info"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n  \"flowRateMlPerMinute\": 200\n}"
+						}
+					]
+				},
+				{
+					"name": "Start Pump (manual, terus sampai di-stop)",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/pump/start",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"pump",
+								"start"
+							]
+						},
+						"description": ""
+					},
+					"response": [
+						{
+							"name": "Success - 200",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/pump/start",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"pump",
+										"start"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n  \"running\": true\n}"
+						}
+					]
+				},
+				{
+					"name": "Stop Pump",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/pump/stop",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"pump",
+								"stop"
+							]
+						},
+						"description": ""
+					},
+					"response": [
+						{
+							"name": "Success - 200",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/pump/stop",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"pump",
+										"stop"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n  \"running\": false\n}"
+						}
+					]
+				},
+				{
+					"name": "Test Pump (X detik, auto-off)",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/api/pump/test",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"pump",
+								"test"
+							]
+						},
+						"description": "Blocking - request menggantung selama durasi test (maks 10 detik, otomatis dipotong kalau nilai yang dikirim lebih dari itu) sampai pompa selesai diuji.",
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"durationSecond\": 3\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						}
+					},
+					"response": [
+						{
+							"name": "Success - 200 (setelah nunggu 3 detik)",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/pump/test",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"pump",
+										"test"
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"durationSecond\": 3\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n  \"running\": false\n}"
+						},
+						{
+							"name": "Success - durationSecond dilewati (default 3 detik) - 200",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/pump/test",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"pump",
+										"test"
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n  \"running\": false\n}"
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Maintenance",
+			"item": [
+				{
+					"name": "Factory Reset",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/api/maintenance/factory-reset",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"api",
+								"maintenance",
+								"factory-reset"
+							]
+						},
+						"description": "Reset semua setting ke default + hapus semua log. Tidak bisa di-undo."
+					},
+					"response": [
+						{
+							"name": "Success - 200",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/api/maintenance/factory-reset",
+									"host": [
+										"{{base_url}}"
+									],
+									"path": [
+										"api",
+										"maintenance",
+										"factory-reset"
+									]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [
+								{
+									"key": "Content-Type",
+									"value": "application/json"
+								}
+							],
+							"cookie": [],
+							"body": "{\n  \"success\": true\n}"
+						}
+					]
+				}
+			]
+		}
+	]
+}
