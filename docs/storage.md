@@ -25,6 +25,11 @@ Contoh 1 baris log sensor:
 {"id":128,"createdAt":1737350700,"soilMoisture":29,"airHumidity":62.8,"airTemperature":28.6,"lightIntensity":300,"isIrrigationRun":true,"irrigationLogId":0,"irrigationRunAt":0,"irrigationStopAt":0,"irrigationDurationSecond":0,"irrigationMillilitre":0,"isSynced":false,"syncedAt":0}
 ```
 
+Semua field waktu (`createdAt`, `irrigationRunAt`, `irrigationStopAt`,
+`syncedAt`) berupa **epoch UTC dalam detik**; `createdAt` bernilai `0`
+kalau waktu belum tersinkron. Offset WIB cuma dipakai firmware buat jam
+di layar TFT.
+
 ## Sesi irigasi yang belum selesai sengaja tidak dicatat
 
 `IrrigationLog` cuma ditulis **satu kali**, sesudah pompa berhenti -
