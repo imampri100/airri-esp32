@@ -2,6 +2,7 @@
 
 #include <Wire.h>
 
+#include "infrastructure/config/time_config.h"
 #include "presentation/serial/serial_logger.h"
 
 namespace irrigation
@@ -26,17 +27,18 @@ namespace irrigation
         if (rtc.lostPower())
         {
             // Chip baru / baterai coin cell habis - waktu di dalam RTC
-            // tidak valid. Fallback ke jam mesin saat firmware
-            // dikompilasi supaya log tidak macet di epoch/garbage time -
-            // TIDAK akurat, cuma estimasi kasar. Koreksi manual (adjust
-            // ke waktu WIB yang benar) tetap diperlukan.
-            rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+            // tidak valid. Fallback ke jam laptop saat file ini dikompilasi
+            // (lihat README, Konfigurasi RTC). __DATE__/__TIME__ itu jam
+            // lokal (WIB), jadi dikurangi offset supaya RTC berisi UTC.
+            rtc.adjust(
+                DateTime(F(__DATE__), F(__TIME__)) -
+                TimeSpan(TimeConfig::UTC_OFFSET_SECOND));
 
             SerialLogger::warn(
                 "RTC DS3231 kehilangan daya (baterai coin cell habis/chip "
-                "baru) - waktu di-set sementara dari jam saat kompilasi "
-                "firmware. Koreksi manual ke waktu WIB yang benar kalau "
-                "belum akurat.");
+                "baru) - waktu di-set dari jam saat kompilasi firmware. "
+                "Setel ulang kalau belum akurat (lihat README, Konfigurasi "
+                "RTC).");
         }
 
         return true;

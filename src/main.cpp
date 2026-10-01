@@ -21,6 +21,7 @@
 #include "application/usecase/update_trigger_usecase.h"
 
 #include "infrastructure/config/file_config.h"
+#include "infrastructure/config/time_config.h"
 #include "infrastructure/config/wifi_config.h"
 
 #include "infrastructure/hardware/button_manager.h"
@@ -192,8 +193,8 @@ namespace
     bool lastPumpRunning = false;
     bool pumpStateInitialized = false;
 
-    // RTC menyimpan waktu lokal (WIB) langsung sebagai "unix seconds",
-    // jadi diformat pakai gmtime_r tanpa offset tambahan. "WIB" di bawah
+    // Timestamp berisi epoch UTC - ditambah offset tetap WIB
+    // (TimeConfig::UTC_OFFSET_SECOND) sebelum diformat. "WIB" di bawah
     // cuma label tetap, bukan hasil konversi timezone dinamis.
     String formatClock(const Timestamp &timestamp)
     {
@@ -202,7 +203,8 @@ namespace
             return "--:--:--";
         }
 
-        time_t rawTime = static_cast<time_t>(timestamp.value());
+        time_t rawTime = static_cast<time_t>(
+            timestamp.value() + TimeConfig::UTC_OFFSET_SECOND);
         struct tm parts;
         gmtime_r(&rawTime, &parts);
 

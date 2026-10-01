@@ -3,13 +3,13 @@
 #include <Arduino.h>
 #include <time.h>
 
+#include "infrastructure/config/time_config.h"
+
 namespace irrigation
 {
 
     namespace
     {
-        // WIB (UTC+7). Sesuaikan kalau device dipakai di zona waktu lain.
-        constexpr long GMT_OFFSET_SEC = 7 * 3600;
         constexpr int DAYLIGHT_OFFSET_SEC = 0;
         constexpr const char *NTP_SERVER_1 = "pool.ntp.org";
         constexpr const char *NTP_SERVER_2 = "time.google.com";
@@ -19,7 +19,7 @@ namespace irrigation
     bool NetworkTimeProvider::begin()
     {
         configTime(
-            GMT_OFFSET_SEC,
+            TimeConfig::UTC_OFFSET_SECOND,
             DAYLIGHT_OFFSET_SEC,
             NTP_SERVER_1,
             NTP_SERVER_2);
